@@ -267,17 +267,105 @@ def getParentPath():
     ParentPath = os.path.abspath(os.path.join(S3DataFolderPath, os.path.pardir))
     print("parent", ParentPath)
 
+def process_test1():
+    #不能跨平台： 由于Windows没有fork调用，上面的代码在Windows上无法运行。
+    import os
+
+    print('Process (%s) start...' % os.getpid())
+
+    from sys import platform
+    if platform == "linux" or platform == "linux2":
+        pid = os.fork()
+        if pid == 0:
+            print('I am child process (%s) and my parent is %s.' % (os.getpid(), os.getppid()))
+        else:
+            print('I (%s) just created a child process (%s).' % (os.getpid(), pid))
+    else:
+        print("current os: " + platform)
+
+
+from multiprocessing import Process
+import os
+
+# 子进程要执行的代码
+def run_proc(name):
+    print('Run child process %s (%s)...' % (name, os.getpid()))
+
+def process_test2():
+    #能跨平台： multiprocessing模块就是跨平台版本的多进程模块
+    print('Parent process %s.' % os.getpid())
+
+    p = Process(target=run_proc, args=('arg1',))
+    print('Process will start.')
+
+    p.start()
+    p.join()
+    print('Process end.')
+
+
+from multiprocessing import Pool
+import os, time, random
+
+def long_time_task(name):
+    print ('Run task %s (%s)...' % (name, os.getpid()))
+    start = time.time()
+    time.sleep(random.random() * 3)
+    end = time.time()
+    print ('Task %s runs %0.2f seconds.' % (name, (end - start)))
+
+def process_pool_test():
+    print('Parent process %s.' % os.getpid())
+    MyPool = Pool(12)
+    for i in range(12):
+        MyPool.apply_async(long_time_task, args=(i,))
+    print('Waiting for all subprocesses done...')
+
+    MyPool.close()
+    MyPool.join()
+    print('All subprocesses done.')
+
+from multiprocessing import Queue
+
+# 写数据进程执行的代码:
+def write(q):
+    for value in ['A', 'B', 'C']:
+        print ('Put %s to queue...' % value)
+        q.put(value)
+        time.sleep(random.random())
+
+# 读数据进程执行的代码:
+def read(q):
+    while True:
+        value = q.get(True)
+        print ('Get %s from queue.' % value)
+
+def ipc_test():
+    # 父进程创建Queue，并传给各个子进程：
+    q = Queue()
+    WriterProcess = Process(target=write, args=(q,))
+    ReaderProcess = Process(target=read, args=(q,))
+
+    # 启动子进程，写入:
+    WriterProcess.start()
+    # 启动子进程，读取:
+    ReaderProcess.start()
+    # 等待Writer结束:
+    WriterProcess.join()
+    time.sleep(2)
+    # ReaderProcess进程里是死循环，无法等待其结束，只能强行终止:
+    ReaderProcess.terminate()
+
 def main():
-    list1 = ['2.4.07.494', '2.4.06.6']
-    list2 = ['2.4.06.6', '2.4.06.7']
-
-    print("=====================  list1 : ", list1)
-    list1.sort(key=functools.cmp_to_key(compareVersio5))
-    print("===================== list1 : ", list1)
-
-    print("=====================  list2 : ", list2)
-    list2.sort(key=functools.cmp_to_key(compareVersio5))
-    print("===================== list2 : ", list2)
+    # list1 = ['2.4.07.494', '2.4.06.6']
+    # list2 = ['2.4.06.6', '2.4.06.7']
+    #
+    # print("=====================  list1 : ", list1)
+    # list1.sort(key=functools.cmp_to_key(compareVersio5))
+    # print("===================== list1 : ", list1)
+    #
+    # print("=====================  list2 : ", list2)
+    # list2.sort(key=functools.cmp_to_key(compareVersio5))
+    # print("===================== list2 : ", list2)
 
     # OrderedDictTest2()
     # OrderedDictTest()
@@ -288,7 +376,12 @@ def main():
     # getParentPath()
 
 
-    boto_test()
+    # boto_test()
+
+    # process_test1()
+    #process_test2()
+    # process_pool_test()
+    ipc_test()
 
 if __name__ == '__main__':
     main()
