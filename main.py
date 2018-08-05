@@ -267,7 +267,7 @@ def getParentPath():
     ParentPath = os.path.abspath(os.path.join(S3DataFolderPath, os.path.pardir))
     print("parent", ParentPath)
 
-def process_test1():
+def process_retest1():
     #不能跨平台： 由于Windows没有fork调用，上面的代码在Windows上无法运行。
     import os
 
@@ -291,7 +291,7 @@ import os
 def run_proc(name):
     print('Run child process %s (%s)...' % (name, os.getpid()))
 
-def process_test2():
+def process_retest2():
     #能跨平台： multiprocessing模块就是跨平台版本的多进程模块
     print('Parent process %s.' % os.getpid())
 
@@ -313,7 +313,7 @@ def long_time_task(name):
     end = time.time()
     print ('Task %s runs %0.2f seconds.' % (name, (end - start)))
 
-def process_pool_test():
+def process_pool_retest():
     print('Parent process %s.' % os.getpid())
     MyPool = Pool(12)
     for i in range(12):
@@ -339,7 +339,7 @@ def read(q):
         value = q.get(True)
         print ('Get %s from queue.' % value)
 
-def ipc_test():
+def ipc_retest():
     # 父进程创建Queue，并传给各个子进程：
     q = Queue()
     WriterProcess = Process(target=write, args=(q,))
@@ -354,6 +354,117 @@ def ipc_test():
     time.sleep(2)
     # ReaderProcess进程里是死循环，无法等待其结束，只能强行终止:
     ReaderProcess.terminate()
+
+import time, threading
+# 新线程执行的代码:
+def loop(*SCUT_Args):
+    print('thread %s is running...' % threading.current_thread().name)
+    print("args : ", SCUT_Args)
+    n = 0
+    while n < 5:
+        n = n + 1
+        print('thread %s >>> %s' % (threading.current_thread().name, n))
+        time.sleep(1)
+    print('thread %s ended.' % threading.current_thread().name)
+
+
+def thread_retest1():
+    print('thread %s is running...' % threading.current_thread().name)
+    t = threading.Thread(target=loop, name='SCUTThread', args =('C13',"A4"))
+    t.start()
+    t.join()
+    print('thread %s ended.' % threading.current_thread().name)
+
+
+# # 假定这是你的银行存款:
+# balance = 0
+#
+# def change_it(n):
+#     # 先存后取，结果应该为0:
+#     global balance
+#     balance = balance + n
+#     balance = balance - n
+
+def run_thread(n):
+    for i in range(100000):
+        change_it(n)
+
+
+def WithOutLock_Retest():
+    # 当t1、t2交替执行时，只要循环次数足够多，balance的结果就不一定是0了。
+    t1 = threading.Thread(target=run_thread, args=(5,))
+    t2 = threading.Thread(target=run_thread, args=(8,))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+    print(balance)
+
+# 假定这是你的银行存款:
+balance = 0
+lock = threading.Lock()
+
+def change_it(n):
+    # 先存后取，结果应该为0:
+    global balance
+    balance = balance + n
+    balance = balance - n
+
+def run_thread2(n):
+    for i in range(100000):
+        # 先要获取锁:
+        lock.acquire()
+        try:
+            # 放心地改吧:
+            change_it(n)
+        finally:
+            # 改完了一定要释放锁:
+            lock.release()
+
+def Lock_Retest():
+    # 当t1、t2交替执行时，不管循环次数为多少，balance的结果总是0了。
+    t1 = threading.Thread(target=run_thread2, args=(5,))
+    t2 = threading.Thread(target=run_thread2, args=(8,))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+    print(balance)
+
+
+def loop():
+    x = 0
+    while True:
+        x = x ^ 1
+
+import threading, multiprocessing
+def thread_cpu_percentage_test():
+    # 启动与CPU核心数量相同的N个线程，在4核CPU上可以监控到CPU占用率仅有25%左右，也就是仅使用了一核。
+    for i in range(multiprocessing.cpu_count()):
+        t = threading.Thread(target=loop)
+        t.start()
+
+
+# 创建全局ThreadLocal对象:
+SCUT = threading.local()
+
+def process_student():
+    # 获取当前线程关联的StudentName:
+    std = SCUT.StudentName
+    print('Hello, %s (in %s)' % (std, threading.current_thread().name))
+
+def process_thread(name):
+    # 绑定ThreadLocal的StudentName:
+    SCUT.StudentName = name
+    process_student()
+
+def ThreadLocal_Retest():
+    t1 = threading.Thread(target=process_thread, name='Thread-A', args=('Alice',))
+    t2 = threading.Thread(target=process_thread, name='Thread-B', args=('Bob',))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
 
 def main():
     # list1 = ['2.4.07.494', '2.4.06.6']
@@ -378,10 +489,19 @@ def main():
 
     # boto_test()
 
-    # process_test1()
-    #process_test2()
-    # process_pool_test()
-    ipc_test()
+    # process_retest1()
+    #process_retest2()
+    # process_pool_retest()
+    # ipc_retest()
+
+    # thread_retest1()
+
+    # WithOutLock_Retest()
+    # Lock_Retest()
+
+    # thread_cpu_percentage_test()
+
+    ThreadLocal_Retest()
 
 if __name__ == '__main__':
     main()
